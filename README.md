@@ -7,7 +7,7 @@ Requires Node >= 22.13 (uses the built-in `node:sqlite`; the only dependency is 
 
 ```sh
 npm install
-npm start        # http://localhost:3000, data in ./ledger.db  (PORT / DB_PATH env vars override)
+npm start        # http://localhost:3000
 npm test
 ```
 
@@ -16,6 +16,7 @@ npm test
 Amounts are integers in minor units (cents).
 
 ### `POST /topup`
+
 ```json
 { 
   "wristband_id": "wb-123",
@@ -25,9 +26,11 @@ Amounts are integers in minor units (cents).
   "recorded_at": "2026-07-01T14:15:00Z"
 }
 ```
+
 Creates the wristband on its first top-up. `201` when applied, `200` with `"status": "duplicate"` on a retry, `400` when invalid.
 
 ### `POST /sync`
+
 ```json
 {  
   "transactions": [
@@ -40,7 +43,9 @@ Creates the wristband on its first top-up. `201` when applied, `200` with `"stat
   }]
 }
 ```
+
 Returns `200` for any well-formed batch and judges each transaction separately:
+
 ```json
 {
   "results": [
@@ -56,9 +61,11 @@ Returns `200` for any well-formed batch and judges each transaction separately:
   }]
 }
 ```
+
 `status` is one of `accepted`, `duplicate` (already stored, so it's safe to drop locally) or `rejected` (with a `reason`).
 
 ### `GET /balance/:id`
+
 Returns the balance, a `flagged` flag (true when the balance is negative), and the history in `recorded_at` order. Each history row has a `running_balance` and an `overdrawn` marker.
 
 See [DECISIONS.md](DECISIONS.md) for the reasoning behind these rules.
