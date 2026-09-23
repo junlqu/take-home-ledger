@@ -80,3 +80,29 @@ test('duplicate top-up retry is applied once', async () => {
   assert.equal(retry.body.status, 'duplicate');
   assert.equal((await get('/balance/wb-1')).body.balance, 1000);
 });
+
+/*
+ * Test 4: Duplicate sync
+ * Objective: Ensure that re-uploading the same batch of
+ * transactions does not alter the balance or history.
+ */
+test('duplicate sync: re-uploading the same batch changes nothing', async () => {
+  await topUp('wb-1', 5000);
+  const batch = {
+    transactions: [
+      spend('pos-A', '1', 'wb-1', 1200, at(14, 0)),
+      spend('pos-A', '2', 'wb-1', 800, at(14, 5)),
+    ],
+  };
+
+  const first = await post('/sync', batch);
+  assert.deepEqual(first.body.results.map((r) => r.status), ['accepted', 'accepted']);
+
+  const second = await post('/sync', batch);
+  assert.equal(second.status, 200);
+  assert.deepEqual(second.body.results.map((r) => r.status), ['duplicate', 'duplicate']);
+
+  const b = await get('/balance/wb-1');
+  assert.equal(b.body.balance, 3000);
+  assert.equal(b.body.history.length, 3);
+});

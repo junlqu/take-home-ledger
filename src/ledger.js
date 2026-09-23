@@ -82,10 +82,10 @@ export function createLedger(db) {
   const q = statements(db);
 
   /*
-    * Top up a wristband's balance into the ledger.
-    * Ensure the top-up request is valid and properly recorded.
-    * Topup terminals are always online, so their clock is synchronized with the server.
-    */
+   * Top up a wristband's balance into the ledger.
+   * Ensure the top-up request is valid and properly recorded.
+   * Topup terminals are always online, so their clock is synchronized with the server.
+   */
   function topUp(body) {
     // Validate the top-up request body before proceeding
     const error = validateEntry(body, { requireRecordedAt: false });
@@ -108,6 +108,56 @@ export function createLedger(db) {
       q.insertWristband.run(body.wristband_id, now);
       q.insertEntry.run(body.wristband_id, 'topup', body.amount, body.terminal_id, body.terminal_txn_id, now, now);
       return { status: Status.ACCEPTED, balance: getBalance(body.wristband_id).balance };
+    });
+  }
+
+  /*
+   * Sync the batch into the database.
+   * Each entry in the batch is judged on its own: one bad spend does not
+   * sink the rest. The whole batch is written in one DB transaction so a
+   * crash mid-batch leaves nothing half-applied.
+   */
+  function sync(batch) {
+    const receivedAt = new Date().toISOString();
+    return transaction(db, () => {
+      const touched = new Set();
+      const results = batch.map((e, index) => {
+        const ref = { index, terminal_txn_id: e?.terminal_txn_id ?? null };
+
+        // Validate the individual spend entry before processing it
+        const error = validateEntry(e, { requireRecordedAt: true });
+        if (error) return { ...ref, status: Status.REJECTED, reason: error };
+
+        // Check if a ledger entry with the same terminal_id and terminal_txn_id already exists
+        const existing = q.findByKey.get(e.terminal_id, e.terminal_txn_id);
+        if (existing) {
+          // If an existing entry is found, check if it matches the current spend request
+          if (!sameEntry(existing, e, 'spend')) {
+            return { ...ref, status: Status.REJECTED, reason: 'terminal_txn_id already used for a different transaction' };
+          }
+          // If the existing entry matches the current request, it is considered a duplicate
+          return { ...ref, status: Status.DUPLICATE };
+        }
+
+        // Ensure the wristband exists before recording the spend
+        if (!q.findWristband.get(e.wristband_id)) {
+          return { ...ref, status: Status.REJECTED, reason: 'unknown wristband_id' };
+        }
+
+        // We follow the accept-then-flag approach for offline spends/overspends.
+        q.insertEntry.run(e.wristband_id, 'spend', e.amount, e.terminal_id,
+          e.terminal_txn_id, new Date(e.recorded_at).toISOString(), receivedAt);
+        touched.add(e.wristband_id);
+        return { ...ref, status: Status.ACCEPTED };
+      });
+
+      // Identify wristbands that have been touched in this batch and are now flagged (e.g., overdrawn).
+      const flagged_wristbands = [...touched]
+        .map((id) => getBalance(id))
+        .filter((b) => b.flagged)
+        .map((b) => ({ wristband_id: b.wristband_id, balance: b.balance }));
+
+      return { results, flagged_wristbands };
     });
   }
 
@@ -137,5 +187,5 @@ export function createLedger(db) {
     };
   }
 
-  return { topUp, getBalance };
+  return { topUp, sync, getBalance };
 }

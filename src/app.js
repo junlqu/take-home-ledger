@@ -1,6 +1,8 @@
 import express from 'express';
 import { createLedger, Status } from './ledger.js';
 
+const MAX_BATCH_SIZE = 5000;
+
 export function createApp(db) {
   const ledger = createLedger(db);
   const app = express();
@@ -20,6 +22,29 @@ export function createApp(db) {
       : result.status === Status.DUPLICATE ? 200
       : 400;
     res.status(code).json(result);
+  });
+
+  /*
+   * POST /sync
+   *   terminal_id?: ID of the terminal performing the sync (optional)
+   *   transactions: array of transaction objects, each containing:
+   *     wristband_id: wristband ID
+   *     amount: spend amount (minor units, e.g. cents)
+   *     terminal_id: ID of the terminal performing the spend
+   *     terminal_txn_id: unique transaction ID from the terminal
+   *     recorded_at: timestamp when the spend was recorded
+   * Always 200 for a well-formed batch; per-transaction outcomes are in `results`.
+   */
+  app.post('/sync', (req, res) => {
+    const batch = req.body?.transactions;
+    if (!Array.isArray(batch)) {
+      return res.status(400).json({ error: 'body must be { transactions: [...] }' });
+    }
+    // Check batch size before processing (to prevent excessively large requests)
+    if (batch.length > MAX_BATCH_SIZE) {
+      return res.status(413).json({ error: `batch too large (max ${MAX_BATCH_SIZE}); split and retry` });
+    }
+    res.json(ledger.sync(batch));
   });
 
   /*
