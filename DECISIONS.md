@@ -6,7 +6,11 @@ When first reading this task, a few ideas first pop into my head. I considered u
 
 ## Considerations/Stack
 
-So now we concluded that we want to use an append-only token-basde ledger, we have many things we need to consider. To keep it append-only, we can store all the transactions on a SQLite database. On top of just transactions, we need to also store all the details for wristbands as well. This way we have an easy way to see total amount topped-up and whether a wristband has been flagged. As for the rest of the stack, I chose to use Node and Express, as I am more familiar with that.
+So now we concluded that we want to use an append-only token-basde ledger, we have many things we need to consider. To keep it append-only, we can store all the transactions on a SQLite database. On top of just transactions, we need to also store all the details for wristbands as well. This way we have an easy way to see total amount topped-up and whether a wristband has been flagged.
+
+### Stack
+
+The stack consists of Node.js 22.13+, Express API 5.2.1 and Node's builtin SQLite.
 
 ## Cases
 

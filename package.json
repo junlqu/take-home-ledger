@@ -1,0 +1,17 @@
+{
+  "name": "take-home-ledger",
+  "version": "0.1.0",
+  "description": "Festival cashless ledger API (append-only, offline-sync tolerant)",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
